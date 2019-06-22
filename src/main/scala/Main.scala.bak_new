@@ -1,0 +1,56 @@
+// package org.wq.scala.ml
+import org.apache.spark.mllib.fpm.FPGrowth
+import org.apache.spark.{SparkConf, SparkContext} 
+import java.io._
+/*
+	*
+  * Created by Administrator on 2016/10/24.
+*/ 
+object Main { 
+	def main(args:Array[String]) {
+		// if(args.length!=4) {
+		//	println("请输入4个参数 购物篮数据路径 最小支持度 最小置信度 数据分区")
+		//	System.exit(0) 
+		//}
+		val conf = new SparkConf().setAppName("FPGrowthTest").setMaster("local")
+		val sc = new SparkContext(conf) 
+
+		// val data_path="/home/yiqi/dataset/test_data/trans_10W.txt" 
+		val data_path="/home/yiqi/dataset/data/webdocs_20percent.txt" 
+		val minSupport=0.092
+		val minConfidence=0 
+		val numPartitions=8 
+/*
+		val data_path=args(0) 
+		val minSupport=args(1).toDouble 
+		val minConfidence=args(2).toDouble 
+		val numPartitions=args(3).toInt 
+*/
+		//取出数据 
+		val data = sc.textFile(data_path)
+		//把数据通过空格分割
+		val transactions=data.map(x=>x.split(" "))
+		transactions.cache()
+		//创建一个FPGrowth的算法实列
+		val fpg = new FPGrowth() 
+		//设置训练时候的最小支持度和数据分区 
+		fpg.setMinSupport(minSupport) 
+		fpg.setNumPartitions(numPartitions) 
+		//把数据带入算法中 
+		val model = fpg.run(transactions) 
+		//查看所有的频繁项集，并且列出它出现的次数 
+		model.freqItemsets.collect()
+			.foreach(itemset=>{ println( itemset.items.mkString("[", ",", "]")+","+itemset.freq) })
+		//通过置信度筛选出推荐规则则 
+		//antecedent表示前项 
+		//consequent表示后项 
+		//confidence表示规则的置信度 
+		//model.generateAssociationRules(minConfidence).collect().foreach(rule=>{ println(rule.antecedent.mkString(",")+"-->"+ rule.consequent.mkString(",")+"-->"+ rule.confidence) })
+		//不同的规则可能会产生同一个推荐结果，所以样本数据过规则的时候需要去重 
+		val result = model.generateAssociationRules(minConfidence).collect()
+    val writter = new PrintWriter(new File("output.txt"))
+		result.foreach(rule => writter.println(rule.antecedent.mkString(",")+"-->"+ rule.consequent.mkString(",")+"-->"+ rule.confidence))
+		writter.close()
+		
+	} 
+}
